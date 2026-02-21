@@ -3,54 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NEON NEEDLE BLAST</title>
+  <title>NEON NEEDLE BLAST - OVERDRIVE</title>
   <style>
     /* ＝＝＝ CSS: デザインとレイアウト ＝＝＝ */
     :root {
-      --bg-color: #050510;   /* 深い宇宙のような暗色 */
+      --bg-color: #050510;
       --text-color: #fff;
-      --neon-pink: #ff00ff;  /* ネオンピンク */
-      --neon-cyan: #00ffff;  /* ネオンシアン */
-      --neon-yellow: #ffff00;/* ネオンイエロー（フィーバー用） */
+      --neon-cyan: #00ffff;
+      --neon-pink: #ff00ff;
+      --neon-yellow: #ffff00;
+      --neon-red: #ff2a2a;
     }
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       background-color: var(--bg-color);
       color: var(--text-color);
-      font-family: 'Orbitron', sans-serif; /* サイバーパンク風フォント（Google Fontsで読み込む想定だが、なくても動く） */
+      font-family: 'Orbitron', 'Segoe UI', sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
       overflow: hidden;
       user-select: none;
-      touch-action: manipulation; /* ダブルタップ拡大などを防止 */
+      touch-action: manipulation;
     }
 
-    /* ゲーム全体を包むコンテナ */
     #gameWrapper {
       position: relative;
       width: 100%;
       max-width: 400px;
-      height: 600px;
+      height: 650px;
       border-radius: 10px;
       overflow: hidden;
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+      display: flex;
+      flex-direction: column;
     }
 
-    canvas {
-      display: block;
+    /* キャンバスコンテナ（画面揺れの影響を全体に適用しやすくするため） */
+    #canvasContainer {
+      position: relative;
+      flex-grow: 1;
       width: 100%;
-      height: 100%;
-      background: radial-gradient(circle at center, #1a1a2e 0%, #050510 100%); /* 少しグラデーションで奥行きを出す */
-      cursor: crosshair;
+      background: radial-gradient(circle at center, #1a1a2e 0%, #050510 100%);
+      overflow: hidden;
     }
+
+    canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 
     /* UI表示エリア */
     #uiContainer {
@@ -63,25 +64,19 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      text-shadow: 0 0 5px var(--neon-cyan);
+      z-index: 10;
     }
-
-    .score-box {
-      text-align: left;
-    }
+    .score-box { text-align: left; text-shadow: 0 0 5px var(--neon-cyan); }
     .score-label { font-size: 14px; color: var(--neon-cyan); }
     #scoreValue { font-size: 28px; font-weight: bold; }
 
-    .combo-box {
-      text-align: right;
-    }
-    #comboValue { font-size: 32px; font-weight: bold; color: var(--neon-pink); text-shadow: 0 0 10px var(--neon-pink); }
+    .combo-box { text-align: right; text-shadow: 0 0 10px var(--neon-pink); }
+    #comboValue { font-size: 32px; font-weight: bold; color: var(--neon-pink); }
     .combo-label { font-size: 14px; color: var(--neon-pink); }
 
-    /* フィーバー表示 */
     #feverIndicator {
       position: absolute;
-      top: 50%;
+      top: 40%;
       left: 50%;
       transform: translate(-50%, -50%);
       font-size: 40px;
@@ -89,8 +84,8 @@
       color: var(--neon-yellow);
       text-shadow: 0 0 20px var(--neon-yellow), 0 0 40px var(--neon-yellow);
       opacity: 0;
-      transition: opacity 0.3s;
       pointer-events: none;
+      z-index: 10;
     }
     #feverIndicator.active {
       opacity: 1;
@@ -101,352 +96,542 @@
       to { transform: translate(-50%, -50%) scale(1.1); }
     }
 
+    /* 武器切り替えUI */
+    #weaponSelect {
+      display: flex;
+      height: 70px;
+      background-color: #0a0a1a;
+      border-top: 2px solid #333;
+    }
+    .wpn-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-right: 1px solid #333;
+      color: #888;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+    .wpn-btn:last-child { border-right: none; }
+    .wpn-btn.active { color: #fff; background-color: rgba(255,255,255,0.1); }
+    
+    /* 武器ごとのテーマカラー */
+    #btnWpn0.active { box-shadow: inset 0 -4px 0 var(--neon-cyan); text-shadow: 0 0 5px var(--neon-cyan); }
+    #btnWpn1.active { box-shadow: inset 0 -4px 0 var(--neon-red); text-shadow: 0 0 5px var(--neon-red); }
+    #btnWpn2.active { box-shadow: inset 0 -4px 0 var(--neon-yellow); text-shadow: 0 0 5px var(--neon-yellow); }
+
+    /* クールダウンのゲージ（背景として下から伸びる） */
+    .cooldown-fill {
+      position: absolute;
+      bottom: 0; left: 0; width: 100%; height: 0%;
+      background-color: rgba(255, 0, 0, 0.3);
+      z-index: -1;
+      transition: height 0.1s linear;
+    }
+    #btnWpn2 .cooldown-fill { background-color: rgba(255, 255, 0, 0.3); }
+
   </style>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
   <div id="gameWrapper">
-    <canvas id="gameCanvas"></canvas>
-    <div id="uiContainer">
-      <div class="score-box">
-        <div class="score-label">SCORE</div>
-        <div id="scoreValue">0</div>
+    <div id="canvasContainer">
+      <canvas id="gameCanvas"></canvas>
+      <div id="uiContainer">
+        <div class="score-box">
+          <div class="score-label">SCORE</div>
+          <div id="scoreValue">0</div>
+        </div>
+        <div class="combo-box">
+          <div id="comboValue">0</div>
+          <div class="combo-label">COMBO!</div>
+        </div>
       </div>
-      <div class="combo-box">
-        <div id="comboValue">0</div>
-        <div class="combo-label">COMBO!</div>
-      </div>
+      <div id="feverIndicator">FEVER!!</div>
     </div>
-    <div id="feverIndicator">FEVER!!</div>
+    
+    <div id="weaponSelect">
+      <button class="wpn-btn active" id="btnWpn0" onclick="setWeapon(0)">
+        1. NORMAL
+        <div class="cooldown-fill" id="cdFill0"></div>
+      </button>
+      <button class="wpn-btn" id="btnWpn1" onclick="setWeapon(1)">
+        2. BOMB
+        <div class="cooldown-fill" id="cdFill1"></div>
+      </button>
+      <button class="wpn-btn" id="btnWpn2" onclick="setWeapon(2)">
+        3. LASER
+        <div class="cooldown-fill" id="cdFill2"></div>
+      </button>
+    </div>
   </div>
 
   <script>
     /* ＝＝＝ JavaScript: ゲームロジックと演出 ＝＝＝ */
-
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const scoreEl = document.getElementById('scoreValue');
-    const comboEl = document.getElementById('comboValue');
-    const feverIndEl = document.getElementById('feverIndicator');
-
-    // --- キャンバスサイズの調整 ---
+    
+    // --- キャンバスのリサイズ ---
     function resizeCanvas() {
-      const wrapper = document.getElementById('gameWrapper');
-      canvas.width = wrapper.clientWidth;
-      canvas.height = wrapper.clientHeight;
+      const container = document.getElementById('canvasContainer');
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
     }
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-
-    // --- ★設定値（ここをいじるとゲームバランスが変わります）★ ---
+    // --- ★設定・パラメータ（演出の調整用）★ ---
     const CONFIG = {
-      TARGET_RADIUS: 50,        // 的の半径
-      PIN_LENGTH: 100,          // 針の長さ
-      PIN_HEAD_RADIUS: 6,       // 針の頭の半径
-      BASE_ROTATION_SPEED: 0.02, // 通常時の回転速度
-      FEVER_ROTATION_SPEED: 0.05,// フィーバー時の回転速度
-      FLY_SPEED: 40,            // 針が飛ぶ速度（速いほうが爽快）
-      
-      COLLISION_MARGIN: 0.15,   // 当たり判定の角度幅（ラジアン）。この範囲内なら「衝突」
-      
-      COMBO_FOR_FEVER: 10,      // フィーバー発動に必要なコンボ数
-      FEVER_DURATION: 3000,     // フィーバー持続時間 (ms)
+      TARGET_RADIUS: 50,
+      PIN_LENGTH: 90,
+      PIN_HEAD_RADIUS: 6,
+      BASE_ROTATION_SPEED: 0.02,
+      FEVER_ROTATION_SPEED: 0.045,
+      FLY_SPEED: 45,
+      COLLISION_MARGIN: 0.15,
 
-      SCORE_HIT: 10,            // 普通に刺した時の基本スコア
-      SCORE_DESTROY: 50,        // 破壊した時の基本スコア
-
-      // 色設定
-      COLOR_TARGET_GLOW: '#00ffff', // 的の発光色
-      COLOR_PIN_HEAD: '#ff00ff',    // 針の頭の発光色
-      COLOR_PIN_LINE: '#ffffff',    // 針の線の色
-      COLOR_PARTICLE_HIT: ['#00ffff', '#ffffff'], // 刺さった時のパーティクル色
-      COLOR_PARTICLE_DESTROY: ['#ff00ff', '#ffff00', '#ffffff'] // 破壊時のパーティクル色
+      // --- 爽快感演出（ゲームジュース）の設定 ---
+      HITSTOP_FRAMES_NORMAL: 3,   // 通常ヒット時の停止時間（フレーム）
+      HITSTOP_FRAMES_DESTROY: 6,  // 破壊時の停止時間（約0.1秒）
+      HITSTOP_FRAMES_HEAVY: 12,   // ボムやレーザー時の長い停止
+      
+      FLASH_DECAY: 0.08,          // 画面フラッシュが消える速度
+      
+      // --- 武器ごとの設定 ---
+      WEAPONS: [
+        { id: 0, color: '#00ffff', name: 'NORMAL', cdTime: 0 },         // ノーマル：連射可能
+        { id: 1, color: '#ff2a2a', name: 'BOMB', cdTime: 90 },          // ボム：クールダウン約1.5秒(90F)
+        { id: 2, color: '#ffff00', name: 'LASER', cdTime: 300 }         // レーザー：クールダウン約5秒(300F)
+      ]
     };
 
-    // --- ゲームの状態変数 ---
-    let gameState = {
-      score: 0,
-      combo: 0,
+    // --- ゲームのステート（状態管理） ---
+    let state = {
+      score: 0, combo: 0,
       rotationAngle: 0,
-      pins: [],         // 刺さっている針の角度配列
-      flyingPins: [],   // 飛んでいる針のオブジェクト配列
-      particles: [],    // パーティクルオブジェクト配列
-      feverEndTime: 0,  // フィーバー終了時刻
-      isFever: false,   // フィーバー中かどうか
-      screenShakeTimer: 0 // 画面揺れの残り時間
+      pins: [],         // 刺さっている針（角度の配列）
+      flyingPins: [],   // 飛んでいる針オブジェクト
+      particles: [],    // パーティクル（火花）
+      floatingTexts: [],// ポップアップテキスト
+
+      // 演出用ステート
+      hitstopTimer: 0,    // これが0より大きい間、的と弾の動きを止める
+      screenShakeTimer: 0,// 画面揺れタイマー
+      shakeMagnitude: 0,  // 揺れの強さ
+      flashAlpha: 0,      // 画面を白く光らせる透明度
+      laserBeamTimer: 0,  // レーザー描画の残り時間
+
+      // フィーバー管理
+      feverEndTime: 0, isFever: false,
+      
+      // 武器管理
+      currentWeapon: 0,
+      cooldowns: [0, 0, 0] // 各武器の残りクールダウンフレーム
     };
 
-    // 座標の定数
-    let CENTER_X = canvas.width / 2;
-    let CENTER_Y = canvas.height * 0.3; // 的を少し上に配置
-    let WAIT_PIN_Y = canvas.height * 0.85; // 発射位置
+    // 座標の定数（毎フレーム更新）
+    let CENTER_X, CENTER_Y, WAIT_PIN_Y;
 
+    // --- ユーティリティ関数 ---
+    const random = (min, max) => Math.random() * (max - min) + min;
+    const normalizeAngle = (angle) => angle - Math.PI * 2 * Math.floor(angle / (Math.PI * 2));
+    const getAngleDiff = (a, b) => {
+      let diff = Math.abs(a - b);
+      return diff > Math.PI ? Math.PI * 2 - diff : diff;
+    };
 
-    // --- ユーティリティ ---
-    function random(min, max) { return Math.random() * (max - min) + min; }
-    function normalizeAngle(angle) { return angle - Math.PI * 2 * Math.floor(angle / (Math.PI * 2)); }
+    // --- ★演出・エフェクト発生関数★ ---
 
+    // 1. ヒットストップ（一瞬時が止まる演出）
+    function applyHitstop(frames) {
+      state.hitstopTimer = Math.max(state.hitstopTimer, frames);
+    }
 
-    // --- ★演出系関数（パーティクル、画面揺れ）★ ---
+    // 2. 画面揺れ（ブルッと震える）
+    function applyScreenShake(frames, magnitude) {
+      state.screenShakeTimer = Math.max(state.screenShakeTimer, frames);
+      state.shakeMagnitude = magnitude;
+    }
 
-    // パーティクルを生成する関数
-    function createParticles(x, y, colors, count, speedBase, sizeBase) {
+    // 3. 画面フラッシュ（ピカッと白く光る）
+    function applyFlash(intensity = 0.5) {
+      state.flashAlpha = Math.max(state.flashAlpha, intensity);
+    }
+
+    // 4. パーティクル生成（火花の飛び散り）
+    function spawnParticles(x, y, color, count, speed, size) {
       for (let i = 0; i < count; i++) {
         const angle = random(0, Math.PI * 2);
-        const speed = random(speedBase * 0.5, speedBase * 1.5);
-        const size = random(sizeBase * 0.5, sizeBase * 1.5);
-        const color = colors[Math.floor(random(0, colors.length))];
-        
-        gameState.particles.push({
-          x: x, y: y,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          size: size,
-          color: color,
-          life: 1.0, // 寿命 (1.0 -> 0.0)
-          decay: random(0.02, 0.05) // 減衰速度
+        const s = random(speed * 0.5, speed * 1.5);
+        state.particles.push({
+          x, y,
+          vx: Math.cos(angle) * s, vy: Math.sin(angle) * s,
+          color, size: random(size * 0.5, size * 1.5),
+          life: 1.0, decay: random(0.02, 0.06)
         });
       }
     }
 
-    // 画面揺れを開始する関数
-    function startScreenShake(duration) {
-      gameState.screenShakeTimer = duration;
+    // 5. ポップアップテキスト（スコアやCOMBO文字がフワッと浮かぶ）
+    function spawnFloatingText(x, y, text, color, size = 20) {
+      state.floatingTexts.push({
+        x: x + random(-10, 10), y: y + random(-10, 10),
+        text, color, size,
+        life: 1.0, vy: -1.5 // 上に昇る速度
+      });
+    }
+
+    // --- ★武器の切り替え・発射処理★ ---
+    function setWeapon(index) {
+      state.currentWeapon = index;
+      document.querySelectorAll('.wpn-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === index);
+      });
+    }
+
+    function shoot() {
+      const wp = CONFIG.WEAPONS[state.currentWeapon];
+      
+      // クールダウン中なら撃てない
+      if (state.cooldowns[state.currentWeapon] > 0) return;
+
+      if (state.currentWeapon === 0 || state.currentWeapon === 1) {
+        // 通常針 ＆ 爆発針 は弾を飛ばす
+        state.flyingPins.push({ y: WAIT_PIN_Y, type: state.currentWeapon });
+        state.cooldowns[state.currentWeapon] = wp.cdTime;
+
+      } else if (state.currentWeapon === 2) {
+        // レーザー（即着弾、貫通）
+        fireLaser();
+        state.cooldowns[state.currentWeapon] = wp.cdTime;
+      }
+    }
+
+    // レーザーの発射ロジック
+    function fireLaser() {
+      state.laserBeamTimer = 15; // 15フレームだけビームを描画
+      applyHitstop(CONFIG.HITSTOP_FRAMES_HEAVY);
+      applyScreenShake(20, 15);
+      applyFlash(0.8);
+      
+      // レーザーの軌道（画面真下から中央へ）にある針をすべて破壊する
+      // 的の下半分（絶対角度で45度〜135度の範囲）にいる針を消し飛ばす
+      let destroyedCount = 0;
+      const newPins = [];
+      
+      state.pins.forEach(pinAngle => {
+        // 現在の絶対角度を計算
+        const absAngle = normalizeAngle(state.rotationAngle + pinAngle);
+        // 真下(Math.PI/2)からの距離
+        const diff = getAngleDiff(absAngle, Math.PI / 2);
+        
+        if (diff < 0.8) { // ビームの太さの判定範囲
+          destroyedCount++;
+          // 破壊エフェクト
+          const hX = CENTER_X + Math.cos(absAngle) * CONFIG.TARGET_RADIUS;
+          const hY = CENTER_Y + Math.sin(absAngle) * CONFIG.TARGET_RADIUS;
+          spawnParticles(hX, hY, '#ffff00', 10, 8, 4);
+        } else {
+          newPins.push(pinAngle); // 範囲外の針は残す
+        }
+      });
+      
+      state.pins = newPins; // 配列を更新
+      
+      if (destroyedCount > 0) {
+        state.score += destroyedCount * 100;
+        spawnFloatingText(CENTER_X, CENTER_Y + 50, "LASER ERASE!", '#ffff00', 28);
+      }
+      updateUI();
     }
 
 
-    // --- ゲーム更新ロジック ---
-    function update(deltaTime) {
-      // 座標の再計算（リサイズ対応）
+    // --- メインの更新処理 ---
+    function update() {
       CENTER_X = canvas.width / 2;
-      CENTER_Y = canvas.height * 0.3;
+      CENTER_Y = canvas.height * 0.35;
       WAIT_PIN_Y = canvas.height * 0.85;
 
-      // フィーバー状態の管理
-      gameState.isFever = Date.now() < gameState.feverEndTime;
-      if (gameState.isFever) {
-        feverIndEl.classList.add('active');
-        gameState.rotationAngle += CONFIG.FEVER_ROTATION_SPEED;
+      // クールダウンの更新
+      state.cooldowns.forEach((cd, i) => {
+        if (cd > 0) state.cooldowns[i]--;
+      });
+
+      // フィーバー判定
+      state.isFever = Date.now() < state.feverEndTime;
+      document.getElementById('feverIndicator').classList.toggle('active', state.isFever);
+
+      // ★ヒットストップ処理★
+      // hitstopTimer が 0 より大きい場合は、的と弾の移動処理をスキップする
+      if (state.hitstopTimer > 0) {
+        state.hitstopTimer--;
       } else {
-        feverIndEl.classList.remove('active');
-        gameState.rotationAngle += CONFIG.BASE_ROTATION_SPEED;
-      }
-      gameState.rotationAngle = normalizeAngle(gameState.rotationAngle);
+        // ---- 時間が動いている時だけの処理 ----
+        
+        // 的の回転
+        const rotSpeed = state.isFever ? CONFIG.FEVER_ROTATION_SPEED : CONFIG.BASE_ROTATION_SPEED;
+        state.rotationAngle = normalizeAngle(state.rotationAngle + rotSpeed);
 
-      // 画面揺れのタイマー更新
-      if (gameState.screenShakeTimer > 0) {
-        gameState.screenShakeTimer--;
-      }
+        // 飛んでいる針の更新
+        for (let i = state.flyingPins.length - 1; i >= 0; i--) {
+          const pin = state.flyingPins[i];
+          pin.y -= CONFIG.FLY_SPEED;
 
-      // 飛んでいる針の更新
-      for (let i = gameState.flyingPins.length - 1; i >= 0; i--) {
-        const pin = gameState.flyingPins[i];
-        pin.y -= CONFIG.FLY_SPEED;
+          // 的に到達したか
+          if (pin.y <= CENTER_Y + CONFIG.TARGET_RADIUS) {
+            const hitAngle = normalizeAngle(Math.PI / 2 - state.rotationAngle);
+            const hitX = CENTER_X + Math.cos(state.rotationAngle + hitAngle) * CONFIG.TARGET_RADIUS;
+            const hitY = CENTER_Y + Math.sin(state.rotationAngle + hitAngle) * CONFIG.TARGET_RADIUS;
 
-        // 的の表面に到達したか？
-        const targetSurfaceY = CENTER_Y + CONFIG.TARGET_RADIUS;
-        if (pin.y <= targetSurfaceY) {
-          // 到達時の的の角度から、刺さる位置（相対角度）を計算
-          // 真下(Math.PI/2)から刺さる
-          const hitAngle = normalizeAngle(Math.PI / 2 - gameState.rotationAngle);
-
-          // ★当たり判定（衝突チェック）★
-          let hitIndex = -1;
-          for (let j = 0; j < gameState.pins.length; j++) {
-            let diff = Math.abs(hitAngle - gameState.pins[j]);
-            if (diff > Math.PI) diff = Math.PI * 2 - diff;
-            // 設定したマージンより近ければ「衝突」とみなす
-            if (diff < CONFIG.COLLISION_MARGIN) {
-              hitIndex = j;
-              break;
+            // 衝突判定（既存の針と重なっているか）
+            let collidedWith = -1;
+            for (let j = 0; j < state.pins.length; j++) {
+              if (getAngleDiff(hitAngle, state.pins[j]) < CONFIG.COLLISION_MARGIN) {
+                collidedWith = j; break;
+              }
             }
-          }
 
-          const hitX = CENTER_X + Math.cos(gameState.rotationAngle + hitAngle) * CONFIG.TARGET_RADIUS;
-          const hitY = CENTER_Y + Math.sin(gameState.rotationAngle + hitAngle) * CONFIG.TARGET_RADIUS;
+            if (pin.type === 0) {
+              // --- ① ノーマル針の着弾 ---
+              if (collidedWith !== -1) {
+                // 破壊！
+                state.pins.splice(collidedWith, 1);
+                state.score += (state.isFever ? 100 : 50);
+                state.combo = 0; // コンボリセット
+                
+                applyHitstop(CONFIG.HITSTOP_FRAMES_DESTROY);
+                applyScreenShake(8, 8);
+                applyFlash(0.3);
+                spawnParticles(hitX, hitY, '#00ffff', 25, 6, 3);
+                spawnFloatingText(hitX, hitY, "DESTROY!", '#00ffff');
+              } else {
+                // 成功（刺さる）
+                state.pins.push(hitAngle);
+                state.combo++;
+                state.score += 10 * state.combo * (state.isFever ? 2 : 1);
+                
+                applyHitstop(CONFIG.HITSTOP_FRAMES_NORMAL); // 刺さった瞬間も小さく止める
+                spawnParticles(hitX, hitY, '#ffffff', 10, 3, 2);
+                spawnFloatingText(hitX, hitY, "+" + (10*state.combo), '#ffffff', 16);
 
-          if (hitIndex !== -1) {
-            // 【破壊パターン】既存の針に衝突！ -> 破壊してボーナス
-            gameState.pins.splice(hitIndex, 1); // 既存の針を削除（破壊）
-            
-            // 破壊演出：派手なパーティクルと画面揺れ
-            createParticles(hitX, hitY, CONFIG.COLOR_PARTICLE_DESTROY, 30, 8, 4);
-            startScreenShake(10); // 10フレーム揺らす
+                // フィーバー突入判定
+                if (!state.isFever && state.combo >= 10) {
+                  state.feverEndTime = Date.now() + 4000; // 4秒フィーバー
+                  applyScreenShake(20, 10);
+                  applyFlash(0.6);
+                  spawnFloatingText(CENTER_X, CENTER_Y, "FEVER!!", '#ffff00', 40);
+                }
+              }
 
-            // スコア計算（コンボはリセット）
-            const multiplier = gameState.isFever ? 4 : 1; // フィーバー中は破壊スコア4倍！
-            gameState.score += CONFIG.SCORE_DESTROY * multiplier;
-            gameState.combo = 0; // コンボリセット（破壊はコンボじゃないという解釈。仕様次第で継続もアリ）
-
-          } else {
-            // 【成功パターン】隙間に刺さった！ -> コンボ継続
-            gameState.pins.push(hitAngle);
-
-            // 成功演出：控えめなパーティクル
-            createParticles(hitX, hitY, CONFIG.COLOR_PARTICLE_HIT, 15, 4, 2);
-
-            // コンボ＆スコア計算
-            gameState.combo++;
-            const multiplier = (gameState.isFever ? 2 : 1) * (1 + gameState.combo * 0.1); // コンボ数とフィーバーで倍率アップ
-            gameState.score += Math.floor(CONFIG.SCORE_HIT * multiplier);
-
-            // フィーバー判定
-            if (!gameState.isFever && gameState.combo >= CONFIG.COMBO_FOR_FEVER) {
-              gameState.feverEndTime = Date.now() + CONFIG.FEVER_DURATION;
-              // フィーバー突入演出（少し大きめの画面揺れ）
-              startScreenShake(15);
+            } else if (pin.type === 1) {
+              // --- ② 爆発針の着弾 ---
+              // 刺さらずに大爆発を起こし、周囲の針を巻き込む
+              applyHitstop(CONFIG.HITSTOP_FRAMES_HEAVY);
+              applyScreenShake(15, 12);
+              applyFlash(0.6);
+              spawnParticles(hitX, hitY, '#ff2a2a', 40, 10, 5);
+              
+              let destroyed = 0;
+              const newPins = [];
+              state.pins.forEach(p => {
+                // 爆風の範囲（角度差 0.4 rad 以内）
+                if (getAngleDiff(hitAngle, p) < 0.4) {
+                  destroyed++;
+                  spawnParticles(CENTER_X + Math.cos(state.rotationAngle+p)*CONFIG.TARGET_RADIUS,
+                                 CENTER_Y + Math.sin(state.rotationAngle+p)*CONFIG.TARGET_RADIUS,
+                                 '#ff8800', 5, 5, 2);
+                } else {
+                  newPins.push(p);
+                }
+              });
+              state.pins = newPins;
+              
+              if (destroyed > 0) {
+                state.score += destroyed * 150;
+                spawnFloatingText(hitX, hitY, "BOOM!", '#ff2a2a', 30);
+              }
             }
+
+            state.flyingPins.splice(i, 1); // 飛んでいた針を消す
+            updateUI();
           }
-
-          // UI更新
-          scoreEl.innerText = gameState.score.toLocaleString();
-          comboEl.innerText = gameState.combo;
-          comboEl.style.transform = `scale(${1 + gameState.combo * 0.05})`; // コンボ数に応じて少し大きく
-
-          // 飛んでいる針を削除
-          gameState.flyingPins.splice(i, 1);
         }
+      } 
+      // ---- 時間が動いている時だけの処理 ここまで ----
+
+
+      // エフェクト類の更新（これらはヒットストップ中でも動かすと気持ちいい）
+      if (state.screenShakeTimer > 0) state.screenShakeTimer--;
+      if (state.flashAlpha > 0) state.flashAlpha -= CONFIG.FLASH_DECAY;
+      if (state.laserBeamTimer > 0) state.laserBeamTimer--;
+
+      // パーティクル更新
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+        if (p.life <= 0) state.particles.splice(i, 1);
       }
 
-      // パーティクルの更新
-      for (let i = gameState.particles.length - 1; i >= 0; i--) {
-        const p = gameState.particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= p.decay;
-        if (p.life <= 0) {
-          gameState.particles.splice(i, 1);
-        }
+      // ポップアップテキスト更新
+      for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
+        const t = state.floatingTexts[i];
+        t.y += t.vy; t.life -= 0.02;
+        if (t.life <= 0) state.floatingTexts.splice(i, 1);
       }
     }
 
 
-    // --- 描画関数 ---
-
-    // 針を描画するヘルパー
-    function drawPin(x, y, angle) {
+    // --- 描画処理 ---
+    function drawPin(x, y, angle, color) {
       ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(angle);
+      ctx.translate(x, y); ctx.rotate(angle);
+      ctx.shadowBlur = 10; ctx.shadowColor = color;
 
-      // 針の発光表現（影を使う）
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = CONFIG.COLOR_PIN_HEAD;
-
-      // 針の線
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(CONFIG.PIN_LENGTH, 0);
-      ctx.strokeStyle = CONFIG.COLOR_PIN_LINE;
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      ctx.moveTo(0, 0); ctx.lineTo(CONFIG.PIN_LENGTH, 0);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
 
-      // 針の頭
       ctx.beginPath();
       ctx.arc(CONFIG.PIN_LENGTH, 0, CONFIG.PIN_HEAD_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = CONFIG.COLOR_PIN_HEAD;
-      ctx.fill();
-
+      ctx.fillStyle = color; ctx.fill();
       ctx.restore();
     }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.save(); // 描画状態を保存
+      ctx.save(); // 全体描画の保存
 
       // ★画面揺れの適用★
-      // タイマーが作動中なら、描画全体をランダムにずらす
-      if (gameState.screenShakeTimer > 0) {
-        const shakeIntensity = gameState.screenShakeTimer * 1.5; // 残り時間に応じて揺れ幅を変える
-        const dx = random(-shakeIntensity, shakeIntensity);
-        const dy = random(-shakeIntensity, shakeIntensity);
-        ctx.translate(dx, dy);
+      if (state.screenShakeTimer > 0) {
+        const mag = state.shakeMagnitude * (state.screenShakeTimer / 20); // 徐々に収まる
+        ctx.translate(random(-mag, mag), random(-mag, mag));
       }
 
-      // 1. 的の描画
+      // レーザービームの描画（背景より手前、的より奥）
+      if (state.laserBeamTimer > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(255, 255, 0, ${state.laserBeamTimer / 15})`;
+        ctx.shadowBlur = 30; ctx.shadowColor = '#ffff00';
+        // 画面下から的の中心までの太いビーム
+        ctx.fillRect(CENTER_X - 15, CENTER_Y, 30, canvas.height);
+        ctx.fillStyle = '#fff'; // 芯の部分
+        ctx.fillRect(CENTER_X - 5, CENTER_Y, 10, canvas.height);
+        ctx.restore();
+      }
+
+      // 的の描画
       ctx.save();
       ctx.translate(CENTER_X, CENTER_Y);
-      ctx.rotate(gameState.rotationAngle);
-      
-      // 的の発光
-      ctx.shadowBlur = gameState.isFever ? 30 : 20; // フィーバー中は強く光る
-      ctx.shadowColor = gameState.isFever ? CONFIG.neon_yellow : CONFIG.COLOR_TARGET_GLOW;
+      ctx.rotate(state.rotationAngle);
+      ctx.shadowBlur = state.isFever ? 30 : 15;
+      ctx.shadowColor = state.isFever ? '#ffff00' : CONFIG.WEAPONS[0].color;
       
       ctx.beginPath();
       ctx.arc(0, 0, CONFIG.TARGET_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = '#000'; // 中心は黒
-      ctx.fill();
+      ctx.fillStyle = '#050510'; ctx.fill();
       ctx.lineWidth = 5;
-      ctx.strokeStyle = gameState.isFever ? CONFIG.neon_yellow : CONFIG.COLOR_TARGET_GLOW;
+      ctx.strokeStyle = state.isFever ? '#ffff00' : CONFIG.WEAPONS[0].color;
       ctx.stroke();
       ctx.restore();
 
-      // 2. 刺さっている針の描画
-      gameState.pins.forEach(pinAngle => {
-        const currentAngle = gameState.rotationAngle + pinAngle;
-        const pinX = CENTER_X + Math.cos(currentAngle) * CONFIG.TARGET_RADIUS;
-        const pinY = CENTER_Y + Math.sin(currentAngle) * CONFIG.TARGET_RADIUS;
-        drawPin(pinX, pinY, currentAngle);
+      // 刺さっている針
+      state.pins.forEach(p => {
+        const ang = state.rotationAngle + p;
+        drawPin(CENTER_X + Math.cos(ang)*CONFIG.TARGET_RADIUS, 
+                CENTER_Y + Math.sin(ang)*CONFIG.TARGET_RADIUS, 
+                ang, CONFIG.WEAPONS[0].color);
       });
 
-      // 3. 飛んでいる針の描画
-      gameState.flyingPins.forEach(pin => {
-        // 先端が上向き(-Math.PI/2)になるように描画
-        drawPin(CENTER_X, pin.y, -Math.PI / 2);
+      // 飛んでいる針
+      state.flyingPins.forEach(pin => {
+        drawPin(CENTER_X, pin.y, -Math.PI / 2, CONFIG.WEAPONS[pin.type].color);
       });
 
-      // 4. 待機中の針の描画
-      drawPin(CENTER_X, WAIT_PIN_Y, -Math.PI / 2);
+      // 待機中の針（レーザー以外）
+      if (state.currentWeapon !== 2 && state.cooldowns[state.currentWeapon] <= 0) {
+        drawPin(CENTER_X, WAIT_PIN_Y, -Math.PI / 2, CONFIG.WEAPONS[state.currentWeapon].color);
+      }
 
-      // 5. パーティクルの描画
-      ctx.globalCompositeOperation = 'lighter'; // 加算合成で光って見えるようにする
-      gameState.particles.forEach(p => {
+      // パーティクル
+      ctx.globalCompositeOperation = 'lighter';
+      state.particles.forEach(p => {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); // 寿命が尽きると小さくなる
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
-        ctx.globalAlpha = p.life; // 寿命に応じて透明に
+        ctx.globalAlpha = Math.max(0, p.life);
         ctx.fill();
       });
       ctx.globalAlpha = 1.0;
-      ctx.globalCompositeOperation = 'source-over'; // 合成モードを戻す
+      ctx.globalCompositeOperation = 'source-over';
 
-      ctx.restore(); // 画面揺れの状態を破棄して元に戻す
+      // ポップアップテキスト
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 24px Orbitron, sans-serif';
+      state.floatingTexts.forEach(t => {
+        ctx.font = `bold ${t.size}px Orbitron, sans-serif`;
+        ctx.fillStyle = t.color;
+        ctx.globalAlpha = Math.max(0, t.life);
+        ctx.shadowBlur = 10; ctx.shadowColor = t.color;
+        ctx.fillText(t.text, t.x, t.y);
+      });
+      ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+
+      ctx.restore(); // 画面揺れリセット
+
+      // ★画面フラッシュの描画（最前面）★
+      if (state.flashAlpha > 0) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${state.flashAlpha})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
     }
 
 
-    // --- メインループ ---
-    let lastTime = 0;
-    function gameLoop(timestamp) {
-      const deltaTime = timestamp - lastTime;
-      lastTime = timestamp;
+    // --- UIの更新（スコアとクールダウン） ---
+    function updateUI() {
+      document.getElementById('scoreValue').innerText = state.score;
+      document.getElementById('comboValue').innerText = state.combo;
+      document.getElementById('comboValue').style.transform = `scale(${1 + state.combo*0.05})`;
+    }
 
-      update(deltaTime);
+    function updateCooldownUI() {
+      // 各ボタンの背景のゲージ高さを更新
+      CONFIG.WEAPONS.forEach((wp, i) => {
+        const fill = document.getElementById(`cdFill${i}`);
+        if (wp.cdTime > 0) {
+          const ratio = (state.cooldowns[i] / wp.cdTime) * 100;
+          fill.style.height = `${ratio}%`;
+        }
+      });
+    }
+
+    // --- メインループ ---
+    function gameLoop() {
+      update();
       draw();
+      updateCooldownUI();
       requestAnimationFrame(gameLoop);
     }
 
-
-    // --- 入力イベント（クリック/タップで発射） ---
-    function shoot() {
-      // 待機位置から新しい針を発射（配列に追加するだけ、連打OK）
-      gameState.flyingPins.push({ y: WAIT_PIN_Y });
-    }
-
-    canvas.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      shoot();
-    });
-    // スペースキーでも発射できるようにする（PC用）
+    // --- 入力イベント ---
+    canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); shoot(); });
+    
+    // キーボード操作 (1, 2, 3 で武器切り替え、Space で発射)
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') shoot();
+      if (e.code === 'Space') { e.preventDefault(); shoot(); }
+      if (e.key === '1') setWeapon(0);
+      if (e.key === '2') setWeapon(1);
+      if (e.key === '3') setWeapon(2);
     });
-
 
     // ゲーム開始
-    gameLoop(0);
+    updateUI();
+    gameLoop();
 
   </script>
 </body>
